@@ -1,0 +1,14 @@
+{application, tshark,
+ [
+  {description, "An Erlang tshark library"},
+  {vsn, "1"},
+  {modules, [
+             tshark
+            ]},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {env, []}
+ ]}.
