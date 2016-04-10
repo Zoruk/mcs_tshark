@@ -94,6 +94,11 @@ packet_reader(File) -> [read_packet(File) | fun() -> packet_reader(File) end ].
 %io:format("src : ~p.~p.~p.~p~ndst : ~p.~p.~p.~p~n", [IP_add_src_3, IP_add_src_2, IP_add_src_1, IP_add_src_0,
 %IP_add_dst_3, IP_add_dst_2, IP_add_dst_1, IP_add_dst_0]).
 
+%extract_ip_header_option(Data, 0, PayloadLength) ->
+%  {<< >>, Data:PayloadLength/binary};
+%extract_ip_header_option(Data, OptionLength, PayloadLength) ->
+%  <<Options:OptionLength/binary, Payload:PayloadLength/binary>> = Data,
+%  {Options, Payload}.
 
 ip_parser(Payload) ->
   case Payload of
@@ -106,27 +111,27 @@ ip_parser(Payload) ->
       OptionLen = (IHL - ?IPv4_MIN_HDR_LEN) * 4,
       PayloadLen = (Length - (IHL * 4)),
       io:format("IHL ~p, Length ~p, OptionLen ~p, PayloadLen ~p RestLen ~p~nRest :~p~n", [IHL, Length, OptionLen, PayloadLen, byte_size(Rest), Rest]),
-      <<Options:OptionLen/binary, Payload/binary>> = Rest,
+      <<Options:OptionLen/binary, RestPayload:PayloadLen/binary>> = Rest,
       IpPacket = #ipV4Header{tos = TOS, id = Identification, flags = Flags,
         fragmentOffset = FragOffset, ttl = TTL, protocol = Protocol,
         src = SourceIP, dest = DestinationIP,
-        options = Options, payload = Payload},
+        options = Options, payload = RestPayload},
       {ok, {ipv4, IpPacket}};
     _ -> {error, paylod_parse}
 end
 .
 
-like_type_null_parser(Payload) ->
+link_type_null_parser(Payload) ->
   <<ProtocolFamily:32/native, Rest/binary>> = Payload,
   io:format("~p~n", [ProtocolFamily]),
   try ProtocolFamily of
-    ?PF_INET -> {ok, ip_parser(Rest)};
+    ?PF_INET -> ip_parser(Rest);
     Any -> {error, {unsoported_pf, Any}}
   catch
     error:Any -> {error, Any}
   end
 .
 get_link_type_parser(NetWorkType) when NetWorkType =:= ?LINKTYPE_NULL ->
-  {ok, fun(P) -> like_type_null_parser(P) end}.
+  {ok, fun(P) -> link_type_null_parser(P) end}.
 
 %% End of Module.
