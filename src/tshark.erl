@@ -19,12 +19,12 @@
 
 %% tshark: tshark library's entry point.
 
--export([open_file/1, test/1]).
+-export([tshark_from_file/1, tshark_from_file_verbose/1, open_file/1, test/1]).
 %% API
 tshark_from_file(FileName) ->
-    ok.
-thasrk_from_file_verbose(FileName) ->
-    ok.
+    {ok, FileName ++ ": rien pour le moment"}.
+tshark_from_file_verbose(FileName) ->
+    {ok, FileName ++ ": rien pour le moment"}.
 
 -record(pcapHeader, {magicNumber, versionMajor, versionMinor, thisZone, sigfigs, snapLength, network}).
 -record(packetHeader, {sec, uSec, savedLength, realLength}).
