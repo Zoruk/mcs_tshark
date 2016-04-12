@@ -22,7 +22,8 @@
 -export([tshark_from_file/1, tshark_from_file_verbose/1, open_file/1, test/1]).
 %% API
 tshark_from_file(FileName) ->
-    {ok, FileName ++ ": rien pour le moment"}.
+    {ok,
+     io_lib:format("  ~p   ~.7g  ~p.~p.~p.~p -> ~p.~p.~p.~p      bs ", [1, 0.0, 127, 0, 0, 1, 127, 0, 0, 1]) ++ FileName}.
 tshark_from_file_verbose(FileName) ->
     {ok, FileName ++ ": rien pour le moment"}.
 
