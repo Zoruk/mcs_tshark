@@ -20,6 +20,13 @@
 %% tshark: tshark library's entry point.
 
 -export([tshark_from_file/1, tshark_from_file_verbose/1, open_file/1, test/1]).
+%% Helper functions to be tested
+-ifdef(TEST).
+-export([
+	protocol_from_int/1]).
+-endif.
+
+
 %% API
 tshark_from_file(FileName) ->
     {ok,
@@ -145,5 +152,14 @@ link_type_null_parser(Payload) ->
 .
 get_link_type_parser(NetWorkType) when NetWorkType =:= ?LINKTYPE_NULL ->
   {ok, fun(P) -> link_type_null_parser(P) end}.
+
+%% Helper functions
+protocol_from_int(Integer) ->
+    case Integer of
+	1 ->
+	    "ICMP";
+	_ ->
+	    "OTHER"
+    end.
 
 %% End of Module.
