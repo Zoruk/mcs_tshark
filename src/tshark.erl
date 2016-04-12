@@ -22,9 +22,9 @@
 -export([open_file/1, test/1]).
 %% API
 tshark_from_file(FileName) ->
-    .
+    ok.
 thasrk_from_file_verbose(FileName) ->
-    .
+    ok.
 
 -record(pcapHeader, {magicNumber, versionMajor, versionMinor, thisZone, sigfigs, snapLength, network}).
 -record(packetHeader, {sec, uSec, savedLength, realLength}).
