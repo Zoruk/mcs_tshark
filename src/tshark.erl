@@ -1,3 +1,10 @@
+%%%-------------------------------------------------------------------
+%%% @author João Domingues Loic Haas Rick Wertenbroek
+%%% @doc
+%%%
+%%% @end
+%%%-------------------------------------------------------------------
+
 -module(tshark).
 
 %% Other type not supported
@@ -14,6 +21,10 @@
 
 -export([open_file/1, test/1]).
 %% API
+tshark_from_file(FileName) ->
+    .
+thasrk_from_file_verbose(FileName) ->
+    .
 
 -record(pcapHeader, {magicNumber, versionMajor, versionMinor, thisZone, sigfigs, snapLength, network}).
 -record(packetHeader, {sec, uSec, savedLength, realLength}).
