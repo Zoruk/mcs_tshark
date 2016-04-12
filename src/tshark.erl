@@ -23,7 +23,10 @@
 %% Helper functions to be tested
 -ifdef(TEST).
 -export([
-	protocol_from_int/1]).
+	 protocol_from_int/1,
+	 type_from_int/1,
+	 string_ttl/1,
+	 string_id/1]).
 -endif.
 
 
@@ -161,5 +164,21 @@ protocol_from_int(Integer) ->
 	_ ->
 	    "OTHER"
     end.
+
+type_from_int(Integer) ->
+    case Integer of
+	0 ->
+	    "Echo (ping) reply";
+	8 ->
+	    "Echo (ping) request";
+	_ ->
+	    "Other"
+    end.
+
+string_ttl(TTL) ->
+    lists:flatten(io_lib:format("ttl=~p", [TTL])).
+
+string_id(BE_id) ->
+    lists:flatten(io_lib:format("id=0x~4.16.0b", [BE_id])).
 
 %% End of Module.

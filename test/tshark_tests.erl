@@ -16,6 +16,27 @@ protocol_from_int_test() ->
     Actual = tshark:protocol_from_int(1),
     ?assertEqual(Expected, Actual).
 
+type_from_int_request_test() ->
+    Expected = "Echo (ping) request",
+    Actual = tshark:type_from_int(8),
+    ?assertEqual(Expected, Actual).
+
+type_from_int_reply_test() ->
+    Expected = "Echo (ping) reply",
+    Actual = tshark:type_from_int(0),
+    ?assertEqual(Expected, Actual).
+
+string_ttl_test() ->
+    Expected = "ttl=64",
+    Actual = tshark:string_ttl(64),
+    ?assertEqual(Expected, Actual).
+
+%% Big Endian !!!
+string_id_test() ->
+    Expected = "id=0xae4b",
+    Actual = tshark:string_id(44619),
+    ?assertEqual(Expected, Actual).
+
 % Test du mode normal
 result_from_ping_pcap_test() ->
     {ok, Expected} = file:read_file(data_dir("result_normal.txt")),
