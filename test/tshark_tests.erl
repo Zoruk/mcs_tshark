@@ -26,3 +26,6 @@ result_from_ping_pcap_verbose_test() ->
 simple_test() ->
   tshark:test("../ping.pcap"),
   ?assert(true).
+
+data_dir(File) ->
+    code:lib_dir(mcs_tshark, test) ++ "/data/" ++ File.
