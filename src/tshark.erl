@@ -58,7 +58,7 @@ ipv4_packet_to_string(Packet) ->
       get_seq_from_ipv4header(Packet),
       string_ttl(Packet#ipV4Header.ttl)]).
 
-packet_to_string(Parser, Header, Payload) ->
+packet_to_string(Parser, _, Payload) ->
   %io:format("~p~n~p~n", [Header, Payload]),
   case Parser(Payload) of
     {ok, {ipv4, IpPacket}} -> ipv4_packet_to_string(IpPacket);
