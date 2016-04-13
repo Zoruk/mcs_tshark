@@ -16,40 +16,102 @@
 % IP v4 specific
 -define(IPv4_ID, 4).
 -define(IPv4_MIN_HDR_LEN, 5).
+-define(ICMP_PROTOCOL, 1).
 
-%% tshark: tshark library's entry point.
+-record(pcapHeader, {magicNumber, versionMajor, versionMinor, thisZone, sigfigs, snapLength, network}).
+-record(packetHeader, {sec, uSec, savedLength, realLength}).
+-record(ipV4Header, {tos, length, id, flags, fragmentOffset, ttl, protocol, protocolText, src, dest, options, payload}).
+-record(icmpHeader, {type, text, code, crc, payload}).
+
 
 -export([tshark_from_file/1, tshark_from_file_verbose/1, open_file/1, test/1]).
 %% Helper functions to be tested
 -ifdef(TEST).
 -export([
-	 protocol_from_int/1,
-	 type_from_int/1,
+	 ip_sub_protocol_from_int/1,
+	 icmp_type_from_int/1,
 	 string_ttl/1,
 	 string_id/1]).
 -endif.
 
+get_seq_from_ipv4header(_) -> "seq=0/0".
+
+ipv4_packet_to_string(Packet) ->
+  <<Src0:8/big, Src1:8/big, Src2:8/big, Src3:8/big >> = Packet#ipV4Header.src,
+  <<Dst0:8/big, Dst1:8/big, Dst2:8/big, Dst3:8/big >> = Packet#ipV4Header.dest,
+  Parser = case get_parser_from_ip_sub_protocol(Packet#ipV4Header.protocol) of
+             {ok, P} -> P;
+             _ -> fun(_) -> "ERROR" end
+           end,
+  SimpleText =
+    case Parser(Packet#ipV4Header.payload) of
+      {ok, icmp, IcmpHeader} -> IcmpHeader#icmpHeader.text;
+      _ -> "UNKNOWN"
+    end,
+  io_lib:format("~p.~p.~p.~p -> ~p.~p.~p.~p    ~s ~p ~s ~s, ~s, ~s",
+    [Src0, Src1, Src2, Src3,
+      Dst0, Dst1, Dst2, Dst3,
+      Packet#ipV4Header.protocolText,
+      Packet#ipV4Header.length + 4,
+      SimpleText,
+      string_id(Packet#ipV4Header.id),
+      get_seq_from_ipv4header(Packet),
+      string_ttl(Packet#ipV4Header.ttl)]).
+
+packet_to_string(Parser, Header, Payload) ->
+  %io:format("~p~n~p~n", [Header, Payload]),
+  case Parser(Payload) of
+    {ok, {ipv4, IpPacket}} -> ipv4_packet_to_string(IpPacket);
+    _ -> "Error"
+  end.
+
 
 %% API
 tshark_from_file(FileName) ->
-    {ok,
-     io_lib:format("  ~p   ~.7g  ~p.~p.~p.~p -> ~p.~p.~p.~p      bs ", [1, 0.0, 127, 0, 0, 1, 127, 0, 0, 1]) ++ FileName}.
+  {ok, File} = open_file(FileName),
+  {ok, PcapHeader} = extract_pcap_header(File),
+  LazyReader = packet_reader(File),
+  {ok, Parser} = get_link_type_parser(PcapHeader#pcapHeader.network),
+  {_, _, Str} = lazy:foldl(
+    fun(Packet, {N, LastHeader, Acc}) ->
+
+      %
+      {CurrentHeader, Str} =
+        case Packet of
+          {ok, Header, Payload} -> {Header, packet_to_string(Parser, Header, Payload)};
+          _ -> {LastHeader, "Error"}
+        end,
+
+      %
+      Sec =
+        case LastHeader of
+          first -> 0.0;
+          LastHeader ->
+            LastTime = LastHeader#packetHeader.sec * 1000000 + LastHeader#packetHeader.uSec,
+            Time     = CurrentHeader#packetHeader.sec * 1000000 + CurrentHeader#packetHeader.uSec,
+            (Time - LastTime) / 1000000.0
+        end,
+
+      % LOLLOL
+      {N + 1, CurrentHeader,io_lib:format("~s  ~p   ~s    ~s~n", [
+        Acc,
+        N,
+        float_to_list(Sec, [{decimals, 6}]),
+        Str
+      ])}
+    end,
+    {0, first,""}, LazyReader),
+    io:format("~s~n", [Str]),
+    {ok, Str}
+.
+
 tshark_from_file_verbose(FileName) ->
     {ok, FileName ++ ": rien pour le moment"}.
 
--record(pcapHeader, {magicNumber, versionMajor, versionMinor, thisZone, sigfigs, snapLength, network}).
--record(packetHeader, {sec, uSec, savedLength, realLength}).
--record(ipV4Header, {tos, id, flags, fragmentOffset, ttl, protocol, src, dest, options, payload}).
-%hex_to_bin(Str) -> << << (erlang:list_to_integer([H], 16)):4 >> || H <- Str >>.
-
-%my_func(FILE) ->
-%    {ok, Binary} = file:read_file(FILE),
-%    {_,_, Packet} = get_packet(extract_pcap_header(Binary)),
-%    extract_ip_header(Packet).
 open_file(FileName) ->
   file:open(FileName, [read, binary, raw]).
 
-read_all([{error, eof} | _], _, _) -> ok;
+read_all([lazy_end | _], _, _) -> ok;
 read_all([{ok, Header, Payload} | T], Parser, Acc) ->
   io:format("Packet ~p~n", [Acc]),
   io:format("    Header : ~p~n", [Header]),
@@ -102,25 +164,11 @@ read_packet(File) ->
     {ok, Header} ->
       Payload = read_length(File, Header#packetHeader.savedLength),
       {ok, Header, Payload};
+    {error, eof} -> lazy_end;
     {error, Any} -> {error, Any}
   end.
 
 packet_reader(File) -> [read_packet(File) | fun() -> packet_reader(File) end ].
-
-%extract_ip_header(Binary) ->
-%  <<Version:4/big, IHL:4/big, ToS:8/big, TotalLength:16/big,
-%    Id:16/big, Flags:3>>
-%    <<IPFamily:4/big, IPHeaderLength:4/big, IPTos:16/big, IPLen:16, IPId:16, IPOff:16, IPTtl:8, IPP:8, IPSum:16,
-%IP_add_src_3:8, IP_add_src_2:8, IP_add_src_1:8, IP_add_src_0:8,
-%IP_add_dst_3:8, IP_add_dst_2:8, IP_add_dst_1:8, IP_add_dst_0:8>> = Binary,
-%io:format("src : ~p.~p.~p.~p~ndst : ~p.~p.~p.~p~n", [IP_add_src_3, IP_add_src_2, IP_add_src_1, IP_add_src_0,
-%IP_add_dst_3, IP_add_dst_2, IP_add_dst_1, IP_add_dst_0]).
-
-%extract_ip_header_option(Data, 0, PayloadLength) ->
-%  {<< >>, Data:PayloadLength/binary};
-%extract_ip_header_option(Data, OptionLength, PayloadLength) ->
-%  <<Options:OptionLength/binary, Payload:PayloadLength/binary>> = Data,
-%  {Options, Payload}.
 
 ip_parser(Payload) ->
   case Payload of
@@ -132,10 +180,11 @@ ip_parser(Payload) ->
         Rest/binary>> when IHL >= ?IPv4_MIN_HDR_LEN ->
       OptionLen = (IHL - ?IPv4_MIN_HDR_LEN) * 4,
       PayloadLen = (Length - (IHL * 4)),
-      io:format("IHL ~p, Length ~p, OptionLen ~p, PayloadLen ~p RestLen ~p~nRest :~p~n", [IHL, Length, OptionLen, PayloadLen, byte_size(Rest), Rest]),
+      %io:format("IHL ~p, Length ~p, OptionLen ~p, PayloadLen ~p RestLen ~p~nRest :~p~n", [IHL, Length, OptionLen, PayloadLen, byte_size(Rest), Rest]),
       <<Options:OptionLen/binary, RestPayload:PayloadLen/binary>> = Rest,
-      IpPacket = #ipV4Header{tos = TOS, id = Identification, flags = Flags,
+      IpPacket = #ipV4Header{tos = TOS, length = Length, id = Identification, flags = Flags,
         fragmentOffset = FragOffset, ttl = TTL, protocol = Protocol,
+        protocolText = ip_sub_protocol_from_int(Protocol),
         src = SourceIP, dest = DestinationIP,
         options = Options, payload = RestPayload},
       {ok, {ipv4, IpPacket}};
@@ -145,7 +194,7 @@ end
 
 link_type_null_parser(Payload) ->
   <<ProtocolFamily:32/native, Rest/binary>> = Payload,
-  io:format("~p~n", [ProtocolFamily]),
+  %io:format("~p~n", [ProtocolFamily]),
   try ProtocolFamily of
     ?PF_INET -> ip_parser(Rest);
     Any -> {error, {unsoported_pf, Any}}
@@ -154,21 +203,39 @@ link_type_null_parser(Payload) ->
   end
 .
 get_link_type_parser(NetWorkType) when NetWorkType =:= ?LINKTYPE_NULL ->
-  {ok, fun(P) -> link_type_null_parser(P) end}.
+  {ok, fun(P) -> link_type_null_parser(P) end};
+get_link_type_parser(_) ->
+  {error, unsupported_link_type}.
 
 %% Helper functions
-protocol_from_int(Integer) ->
+ip_sub_protocol_from_int(Integer) ->
     case Integer of
-	1 ->
+	?ICMP_PROTOCOL ->
 	    "ICMP";
 	_ ->
-	    "OTHER"
+	    "UNKNOWN"
     end.
 
-type_from_int(Integer) ->
+get_parser_from_ip_sub_protocol(Protocol) ->
+  case Protocol of
+    ?ICMP_PROTOCOL -> {ok, fun(X) -> parse_icmp_header(X) end};
+    _ -> {error, unknown_protocol}
+  end
+.
+
+parse_icmp_header(Payload) ->
+  %io:format("ICMP PAYLOAD : ~p ~n", [Payload]),
+  case Payload of
+    <<Type:8/big, Code:8/big, Crc:16/big, Data/binary>> ->
+      Text = icmp_type_from_int(Type),
+      {ok, icmp,
+      #icmpHeader{type = Type, text = Text, code = Code, crc = Crc, payload = Data}};
+    _ -> {error, parsing}
+  end.
+icmp_type_from_int(Integer) ->
     case Integer of
 	0 ->
-	    "Echo (ping) reply";
+	    "Echo (ping) reply  ";
 	8 ->
 	    "Echo (ping) request";
 	_ ->

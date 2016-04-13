@@ -13,17 +13,17 @@
 
 protocol_from_int_test() ->
     Expected = "ICMP",
-    Actual = tshark:protocol_from_int(1),
+    Actual = tshark:ip_sub_protocol_from_int(1),
     ?assertEqual(Expected, Actual).
 
 type_from_int_request_test() ->
     Expected = "Echo (ping) request",
-    Actual = tshark:type_from_int(8),
+    Actual = tshark:icmp_type_from_int(8),
     ?assertEqual(Expected, Actual).
 
 type_from_int_reply_test() ->
-    Expected = "Echo (ping) reply",
-    Actual = tshark:type_from_int(0),
+    Expected = "Echo (ping) reply  ",
+    Actual = tshark:icmp_type_from_int(0),
     ?assertEqual(Expected, Actual).
 
 string_ttl_test() ->
